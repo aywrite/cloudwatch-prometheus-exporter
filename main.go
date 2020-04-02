@@ -33,7 +33,7 @@ func init() {
 	flag.StringVar(&config, "config", "config.yaml", "Path to config file")
 }
 
-func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8) {
+func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8, cfg map[string]map[string]*base.MetricDescription) {
 	var delay uint8 = 0
 	for {
 		select {
@@ -93,6 +93,7 @@ func processConfig(p *string) *base.Config {
 func main() {
 	flag.Parse()
 	c := processConfig(&config)
+	mds := c.ConstructMetrics()
 
 	for _, region := range c.Regions {
 		r := region
@@ -104,7 +105,7 @@ func main() {
 		rdd = append(rdd, &rd)
 		rd.Init(session, c.Tags, r, &c.Period)
 
-		go run(rd.Namespaces, cw, &rd, c.PollInterval)
+		go run(rd.Namespaces, cw, &rd, c.PollInterval, mds)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())
