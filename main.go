@@ -33,7 +33,7 @@ func init() {
 	flag.StringVar(&config, "config", "config.yaml", "Path to config file")
 }
 
-func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8, cfg map[string]map[string]*base.MetricDescription) {
+func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8, cfg map[string][]*base.MetricDescription) {
 	var delay uint8 = 0
 	for {
 		select {
@@ -93,7 +93,11 @@ func processConfig(p *string) *base.Config {
 func main() {
 	flag.Parse()
 	c := processConfig(&config)
-	mds := c.ConstructMetrics()
+	defaults := map[string]map[string]*string{
+		"AWS/RDS": rds.Metrics,
+	}
+
+	mds := c.ConstructMetrics(defaults)
 
 	for _, region := range c.Regions {
 		r := region
@@ -103,7 +107,7 @@ func main() {
 			Config: c,
 		}
 		rdd = append(rdd, &rd)
-		rd.Init(session, c.Tags, r, &c.Period)
+		rd.Init(session, c.Tags, r)
 
 		go run(rd.Namespaces, cw, &rd, c.PollInterval, mds)
 	}

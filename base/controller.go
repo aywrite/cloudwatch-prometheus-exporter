@@ -50,6 +50,7 @@ type MetricDescription struct {
 	awsMetric  *string
 	timestamps map[prometheus.Collector]*time.Time
 	promMetric prometheus.Collector
+	mutex      sync.RWMutex
 }
 
 // RegionDescription describes an AWS region which will be monitored via cloudwatch
@@ -62,7 +63,6 @@ type RegionDescription struct {
 	Filters    []*ec2.Filter
 	Namespaces map[string]*NamespaceDescription
 	Mutex      sync.RWMutex
-	Period     *uint8
 }
 
 // NamespaceDescription describes an AWS namespace to be monitored via cloudwatch
@@ -83,6 +83,7 @@ type ResourceDescription struct {
 	Dimensions []*cloudwatch.Dimension
 	Type       *string
 	Mutex      sync.RWMutex
+	Region     *string
 }
 
 func (md *MetricDescription) metricName() *string {
@@ -143,9 +144,8 @@ func (rd *RegionDescription) saveAccountID() error {
 
 // Init initializes a region and its nested namspaces in preparation for collection
 // cloudwatchc metrics for that region.
-func (rd *RegionDescription) Init(s *session.Session, td []*TagDescription, r *string, p *uint8) error {
+func (rd *RegionDescription) Init(s *session.Session, td []*TagDescription, r *string) error {
 	log.Infof("Initializing region %s ...", *r)
-	rd.Period = p
 	rd.Session = s
 	rd.Tags = td
 	rd.Region = r
@@ -231,6 +231,8 @@ func (md *MetricDescription) initializeMetric() {
 	md.promMetric = promMetric
 	if err := prometheus.Register(promMetric); err != nil {
 		log.Fatalf("Error registering metric %s: %s", name, err)
+	} else {
+		log.Debugf("Registered metric %s", name)
 	}
 }
 
@@ -249,16 +251,20 @@ func (rd *ResourceDescription) BuildDimensions(dd []*DimensionDescription) error
 	return nil
 }
 
+func (rd *ResourceDescription) queryID() *string {
+	// Cloudwatch calls need a snake-case-unique-id
+	id := strings.ToLower(*rd.ID)
+	return aws.String(strings.Replace(id, "-", "_", -1))
+}
+
 // BuildQuery constructs and saves the cloudwatch query for all the metrics associated with the resource
 func (md *MetricDescription) BuildQuery(rds []*ResourceDescription) ([]*cloudwatch.MetricDataQuery, error) {
 	query := []*cloudwatch.MetricDataQuery{}
 	for _, resource := range rds {
 		dimensions := resource.Dimensions
 		dimensions = append(dimensions, md.Dimensions...)
-		// TODO clean this up
-		id := strings.ToLower(*resource.ID)
 		cm := &cloudwatch.MetricDataQuery{
-			Id: aws.String(strings.Replace(id, "-", "_", -1)),
+			Id: resource.queryID(),
 			MetricStat: &cloudwatch.MetricStat{
 				Metric: &cloudwatch.Metric{
 					MetricName: md.awsMetric,
@@ -270,7 +276,7 @@ func (md *MetricDescription) BuildQuery(rds []*ResourceDescription) ([]*cloudwat
 			},
 			// We hardcode the label so that we can rely on the ordering in
 			// saveData.
-			Label:      aws.String((&awsLabels{*resource.Name, *resource.ID, *resource.Type}).String()),
+			Label:      aws.String((&awsLabels{*resource.Name, *resource.ID, *resource.Type, *resource.Region}).String()),
 			ReturnData: aws.Bool(true),
 		}
 		query = append(query, cm)
@@ -279,24 +285,26 @@ func (md *MetricDescription) BuildQuery(rds []*ResourceDescription) ([]*cloudwat
 }
 
 type awsLabels struct {
-	name  string
-	id    string
-	rType string
+	name   string
+	id     string
+	rType  string
+	region string
 }
 
 func (l *awsLabels) String() string {
-	return fmt.Sprintf("%s %s %s", l.name, l.id, l.rType)
+	return fmt.Sprintf("%s %s %s %s", l.name, l.id, l.rType, l.region)
 }
 
 func awsLabelsFromString(s string) (*awsLabels, error) {
 	stringLabels := strings.Split(s, " ")
-	if len(stringLabels) < 3 {
+	if len(stringLabels) < 4 {
 		return nil, fmt.Errorf("Expected at least two labels, got %s", s)
 	}
 	labels := awsLabels{
-		name:  stringLabels[len(stringLabels)-3],
-		id:    stringLabels[len(stringLabels)-2],
-		rType: stringLabels[len(stringLabels)-1],
+		name:   stringLabels[len(stringLabels)-4],
+		id:     stringLabels[len(stringLabels)-3],
+		rType:  stringLabels[len(stringLabels)-2],
+		region: stringLabels[len(stringLabels)-1],
 	}
 	return &labels, nil
 }
@@ -317,7 +325,7 @@ func (md *MetricDescription) saveData(c *cloudwatch.GetMetricDataOutput) {
 			"name":   labels.name,
 			"id":     labels.id,
 			"type":   labels.rType,
-			"region": "TODO",
+			"region": labels.region,
 		}
 
 		values, err := md.filterValues(data, &promLabels)
@@ -346,7 +354,7 @@ func (md *MetricDescription) saveData(c *cloudwatch.GetMetricDataOutput) {
 			continue
 		}
 
-		err = md.updateMetric(*md.OutputName, value, &promLabels)
+		err = md.updateMetric(value, &promLabels)
 		if err != nil {
 			h.LogError(err)
 			continue
@@ -364,9 +372,8 @@ func (md *MetricDescription) filterValues(data *cloudwatch.MetricDataResult, lab
 		if err != nil {
 			return nil, err
 		}
-		//md.Mutex.Lock()
-		//defer md.Mutex.Unlock()
-		// TODO mutex?
+		md.mutex.Lock()
+		defer md.mutex.Unlock()
 		if md.timestamps == nil {
 			md.timestamps = make(map[prometheus.Collector]*time.Time)
 		}
@@ -381,17 +388,14 @@ func (md *MetricDescription) filterValues(data *cloudwatch.MetricDataResult, lab
 	return values, nil
 }
 
-func (md *MetricDescription) updateMetric(name string, value float64, labels *prometheus.Labels) error {
-	// TODO mutex?
-	//rd.Parent.Parent.Mutex.Lock()
-	//defer rd.Parent.Parent.Mutex.Unlock()
+func (md *MetricDescription) updateMetric(value float64, labels *prometheus.Labels) error {
 	switch m := md.promMetric.(type) {
 	case *prometheus.GaugeVec:
 		m.With(*labels).Set(value)
 	case *prometheus.CounterVec:
 		m.With(*labels).Add(value)
 	default:
-		return fmt.Errorf("Could not resolve type of metric %s", name)
+		return fmt.Errorf("Could not resolve type of metric %s", *md.OutputName)
 	}
 	return nil
 }
@@ -474,6 +478,9 @@ func (rd *RegionDescription) TagsFound(tl interface{}) bool {
 
 func (md *MetricDescription) getData(cw *cloudwatch.CloudWatch, rds []*ResourceDescription) (*cloudwatch.GetMetricDataOutput, error) {
 	query, err := md.BuildQuery(rds)
+	if len(query) < 1 {
+		return &cloudwatch.GetMetricDataOutput{}, nil
+	}
 	h.LogError(err)
 
 	t := time.Now().Round(time.Minute * 5)

@@ -21,7 +21,7 @@ metrics:
      statistics: [Sum]
 */
 type configMetric struct {
-	Metric        string    `yaml:"metric"`         // The Cloudwatch metric to use
+	AWSMetric     string    `yaml:"metric"`         // The Cloudwatch metric to use
 	Help          string    `yaml:"help"`           // Custom help text for the generated metric
 	Dimensions    []*string `yaml:"dimensions"`     // The resource dimensions to generate individual series for (via labels)
 	Statistics    []*string `yaml:"statistics"`     // List of AWS statistics to use.
@@ -54,15 +54,27 @@ func LoadConfig(path string) (*Config, error) {
 	return &c, nil
 }
 
-func (c *Config) ConstructMetrics() map[string][]*MetricDescription {
+func (c *Config) ConstructMetrics(defaults map[string]map[string]*string) map[string][]*MetricDescription {
 	mds := make(map[string][]*MetricDescription)
 	for namespace, metrics := range c.Metrics.Data {
+
+		if len(metrics) <= 0 {
+			if n_defaults, ok := defaults[namespace]; ok == true {
+				for key, help := range n_defaults {
+					metrics = append(metrics, &configMetric{
+						AWSMetric: key,
+						Help:      *help,
+					})
+				}
+			}
+		}
+
 		mds[namespace] = []*MetricDescription{}
 		for _, metric := range metrics {
 
 			name := metric.OutputName
 			if name == "" {
-				name = helpers.ToSnakeCase(metric.Metric)
+				name = helpers.ToSnakeCase(metric.AWSMetric)
 				name = strings.ToLower(strings.TrimPrefix(namespace, "AWS/")) + "_" + name
 			}
 
@@ -82,8 +94,10 @@ func (c *Config) ConstructMetrics() map[string][]*MetricDescription {
 			}
 
 			for _, stat := range metric.Statistics {
-				// TODO read defaults for namespace
+				// TODO read defaults for namespace (the metrics)
 				// TODO handle dimensions
+				// TODO move metricName function here / apply to output name
+				// TODO create new metric function (which inits metrics?)
 				mds[namespace] = append(mds[namespace], &MetricDescription{
 					Help:          &metric.Help,
 					OutputName:    &name,
@@ -93,7 +107,7 @@ func (c *Config) ConstructMetrics() map[string][]*MetricDescription {
 					Statistic:     stat,
 
 					namespace: &namespace,
-					awsMetric: &metric.Metric,
+					awsMetric: &metric.AWSMetric,
 				})
 			}
 		}
