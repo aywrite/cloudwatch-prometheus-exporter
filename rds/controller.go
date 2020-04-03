@@ -34,7 +34,7 @@ func CreateResourceDescription(nd *b.NamespaceDescription, dbi *rds.DBInstance) 
 }
 
 // CreateResourceList fetches a list of all RDS databases in the region
-func CreateResourceList(nd *b.NamespaceDescription, wg *sync.WaitGroup, metrics map[string]*b.MetricDescription) error {
+func CreateResourceList(nd *b.NamespaceDescription, wg *sync.WaitGroup, metrics []*b.MetricDescription) error {
 	defer wg.Done()
 	log.Debug("Creating RDS resource list ...")
 	nd.Resources = []*b.ResourceDescription{}

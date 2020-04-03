@@ -54,10 +54,10 @@ func LoadConfig(path string) (*Config, error) {
 	return &c, nil
 }
 
-func (c *Config) ConstructMetrics() map[string]map[string]*MetricDescription {
-	mds := make(map[string]map[string]*MetricDescription)
+func (c *Config) ConstructMetrics() map[string][]*MetricDescription {
+	mds := make(map[string][]*MetricDescription)
 	for namespace, metrics := range c.Metrics.Data {
-		mds[namespace] = make(map[string]*MetricDescription)
+		mds[namespace] = []*MetricDescription{}
 		for _, metric := range metrics {
 
 			name := metric.OutputName
@@ -76,23 +76,27 @@ func (c *Config) ConstructMetrics() map[string]map[string]*MetricDescription {
 				rangeSeconds = int(c.Period) * int(time.Minute)
 			}
 
-			// TODO one for each stat
-			// TODO read defaults for namespace
-			// TODO handle dimensions
-			mds[namespace][metric.Metric] = &MetricDescription{
-				Help:          &metric.Help,
-				OutputName:    &name,
-				Dimensions:    []*cloudwatch.Dimension{},
-				PeriodSeconds: period,
-				RangeSeconds:  rangeSeconds,
-				Statistics:    metric.Statistics,
-
-				namespace: &namespace,
-				awsMetric: &metric.Metric,
+			// TODO check this works
+			if metric.Statistics == nil || len(metric.Statistics) < 1 {
+				metric.Statistics = helpers.StringPointers("Average")
 			}
 
-		}
+			for _, stat := range metric.Statistics {
+				// TODO read defaults for namespace
+				// TODO handle dimensions
+				mds[namespace] = append(mds[namespace], &MetricDescription{
+					Help:          &metric.Help,
+					OutputName:    &name,
+					Dimensions:    []*cloudwatch.Dimension{},
+					PeriodSeconds: period,
+					RangeSeconds:  rangeSeconds,
+					Statistic:     stat,
 
+					namespace: &namespace,
+					awsMetric: &metric.Metric,
+				})
+			}
+		}
 	}
 	return mds
 }
