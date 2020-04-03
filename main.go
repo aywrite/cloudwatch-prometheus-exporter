@@ -10,14 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/base"
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/ec2"
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elasticache"
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elb"
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elbv2"
 	h "github.com/CoverGenius/cloudwatch-prometheus-exporter/helpers"
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/network"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/rds"
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/s3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
@@ -39,16 +33,16 @@ func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd
 		select {
 		case <-time.After(time.Duration(delay) * time.Minute):
 			var wg sync.WaitGroup
-			wg.Add(8)
+			wg.Add(1)
 			log.Debug("Creating list of resources ...")
-			go elasticache.CreateResourceList(nd["AWS/ElastiCache"], &wg)
-			go rds.CreateResourceList(nd["AWS/RDS"], &wg)
-			go ec2.CreateResourceList(nd["AWS/EC2"], &wg)
-			go network.CreateResourceList(nd["AWS/NATGateway"], &wg)
-			go elb.CreateResourceList(nd["AWS/ELB"], &wg)
-			go elbv2.CreateResourceList(nd["AWS/ApplicationELB"], &wg)
-			go elbv2.CreateResourceList(nd["AWS/NetworkELB"], &wg)
-			go s3.CreateResourceList(nd["AWS/S3"], &wg)
+			//go elasticache.CreateResourceList(nd["AWS/ElastiCache"], &wg)
+			go rds.CreateResourceList(nd["AWS/RDS"], &wg, cfg["AWS/RDS"])
+			//go ec2.CreateResourceList(nd["AWS/EC2"], &wg)
+			//go network.CreateResourceList(nd["AWS/NATGateway"], &wg)
+			//go elb.CreateResourceList(nd["AWS/ELB"], &wg)
+			//go elbv2.CreateResourceList(nd["AWS/ApplicationELB"], &wg)
+			//go elbv2.CreateResourceList(nd["AWS/NetworkELB"], &wg)
+			//go s3.CreateResourceList(nd["AWS/S3"], &wg)
 			wg.Wait()
 			log.Debug("Gathering metrics ...")
 			delay = pi

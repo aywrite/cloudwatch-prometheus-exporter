@@ -16,6 +16,7 @@ func StringPointers(strings ...string) []*string {
 	return sp
 }
 
+// TODO fix this function up
 var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
