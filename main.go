@@ -33,8 +33,8 @@ func init() {
 	flag.StringVar(&config, "config", "config.yaml", "Path to config file")
 }
 
-func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi *uint8) {
-	delay := 0
+func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8) {
+	var delay uint8 = 0
 	for {
 		select {
 		case <-time.After(time.Duration(delay) * time.Minute):
@@ -51,7 +51,7 @@ func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd
 			go s3.CreateResourceList(nd["AWS/S3"], &wg)
 			wg.Wait()
 			log.Debug("Gathering metrics ...")
-			delay = int(*pi)
+			delay = pi
 			go rd.GatherMetrics(cw)
 		}
 	}
@@ -104,7 +104,7 @@ func main() {
 		rdd = append(rdd, &rd)
 		rd.Init(session, c.Tags, r, &c.Period)
 
-		go run(rd.Namespaces, cw, &rd, &c.PollInterval)
+		go run(rd.Namespaces, cw, &rd, c.PollInterval)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

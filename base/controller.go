@@ -294,7 +294,7 @@ func (rd *ResourceDescription) BuildQuery() error {
 				},
 				// We hardcode the label so that we can rely on the ordering in
 				// saveData.
-				Label:      aws.String(fmt.Sprintf("%s %s", key, *stat)),
+				Label:      aws.String((&awsLabels{key, *stat}).String()),
 				ReturnData: aws.Bool(true),
 			}
 			query = append(query, cm)
@@ -303,6 +303,27 @@ func (rd *ResourceDescription) BuildQuery() error {
 	rd.Query = query
 
 	return nil
+}
+
+type awsLabels struct {
+	metric    string
+	statistic string
+}
+
+func (l *awsLabels) String() string {
+	return fmt.Sprintf("%s %s", l.metric, l.statistic)
+}
+
+func awsLabelsFromString(s string) (*awsLabels, error) {
+	stringLabels := strings.Split(s, " ")
+	if len(stringLabels) < 2 {
+		return nil, fmt.Errorf("Expected at least two labels, got %s", s)
+	}
+	labels := awsLabels{
+		metric:    stringLabels[len(stringLabels)-2],
+		statistic: stringLabels[len(stringLabels)-1],
+	}
+	return &labels, nil
 }
 
 func (rd *ResourceDescription) saveData(c *cloudwatch.GetMetricDataOutput) {
@@ -317,11 +338,14 @@ func (rd *ResourceDescription) saveData(c *cloudwatch.GetMetricDataOutput) {
 			continue
 		}
 
-		labels := strings.Split(*data.Label, " ")
-		stat := labels[len(labels)-1]
+		labels, err := awsLabelsFromString(*data.Label)
+		if err != nil {
+			h.LogError(err)
+			continue
+		}
 
 		value := 0.0
-		switch stat {
+		switch labels.statistic {
 		case "Average":
 			value, err = h.Average(values)
 		case "Sum":
@@ -333,7 +357,7 @@ func (rd *ResourceDescription) saveData(c *cloudwatch.GetMetricDataOutput) {
 		case "SampleCount":
 			value, err = h.Sum(values)
 		default:
-			err = fmt.Errorf("Unknown Statistic type: %s", stat)
+			err = fmt.Errorf("Unknown Statistic type: %s", labels.statistic)
 		}
 		if err != nil {
 			h.LogError(err)
