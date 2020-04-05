@@ -7,14 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/ec2"
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elasticache"
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elb"
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elbv2"
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/network"
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/s3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/base"
 	h "github.com/CoverGenius/cloudwatch-prometheus-exporter/helpers"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/rds"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -27,26 +30,26 @@ func init() {
 	flag.StringVar(&config, "config", "config.yaml", "Path to config file")
 }
 
-func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8, cfg map[string][]*base.MetricDescription) {
+func run(nd map[string]*base.NamespaceDescription, rd *base.RegionDescription, pi uint8, cfg map[string][]*base.MetricDescription) {
 	var delay uint8 = 0
 	for {
 		select {
 		case <-time.After(time.Duration(delay) * time.Minute):
 			var wg sync.WaitGroup
-			wg.Add(1)
+			wg.Add(8)
 			log.Debug("Creating list of resources ...")
-			//go elasticache.CreateResourceList(nd["AWS/ElastiCache"], &wg)
-			go rds.CreateResourceList(nd["AWS/RDS"], &wg, cfg["AWS/RDS"])
-			//go ec2.CreateResourceList(nd["AWS/EC2"], &wg)
-			//go network.CreateResourceList(nd["AWS/NATGateway"], &wg)
-			//go elb.CreateResourceList(nd["AWS/ELB"], &wg)
-			//go elbv2.CreateResourceList(nd["AWS/ApplicationELB"], &wg)
-			//go elbv2.CreateResourceList(nd["AWS/NetworkELB"], &wg)
-			//go s3.CreateResourceList(nd["AWS/S3"], &wg)
+			go elasticache.CreateResourceList(nd["AWS/ElastiCache"], &wg)
+			go rds.CreateResourceList(nd["AWS/RDS"], &wg)
+			go ec2.CreateResourceList(nd["AWS/EC2"], &wg)
+			go network.CreateResourceList(nd["AWS/NATGateway"], &wg)
+			go elb.CreateResourceList(nd["AWS/ELB"], &wg)
+			go elbv2.CreateResourceList(nd["AWS/ApplicationELB"], &wg)
+			go elbv2.CreateResourceList(nd["AWS/NetworkELB"], &wg)
+			go s3.CreateResourceList(nd["AWS/S3"], &wg)
 			wg.Wait()
 			log.Debug("Gathering metrics ...")
 			delay = pi
-			go rd.GatherMetrics(cw)
+			go rd.GatherMetrics()
 		}
 	}
 }
@@ -85,25 +88,26 @@ func processConfig(p *string) *base.Config {
 }
 
 func main() {
+	// TODO allow hot reload of config
 	flag.Parse()
 	c := processConfig(&config)
-	defaults := map[string]map[string]*string{
-		"AWS/RDS": rds.Metrics,
+	defaults := map[string]map[string]*base.MetricDescription{
+		"AWS/RDS":            rds.Metrics,
+		"AWS/ElastiCache":    elasticache.Metrics,
+		"AWS/EC2":            ec2.Metrics,
+		"AWS/NATGateway":     network.Metrics,
+		"AWS/ELB":            elb.Metrics,
+		"AWS/ApplicationELB": elbv2.ALBMetrics,
+		"AWS/NetworkELB":     elbv2.NLBMetrics,
+		"AWS/S3":             s3.Metrics,
 	}
-
 	mds := c.ConstructMetrics(defaults)
 
 	for _, region := range c.Regions {
-		r := region
-		session := session.Must(session.NewSession(&aws.Config{Region: r}))
-		cw := cloudwatch.New(session)
-		rd := base.RegionDescription{
-			Config: c,
-		}
-		rdd = append(rdd, &rd)
-		rd.Init(session, c.Tags, r)
+		rd := base.NewRegionDescription(c, *region, mds)
+		rdd = append(rdd, rd)
 
-		go run(rd.Namespaces, cw, &rd, c.PollInterval, mds)
+		go run(rd.Namespaces, rd, c.PollInterval, mds)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

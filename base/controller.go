@@ -63,6 +63,17 @@ type RegionDescription struct {
 	Filters    []*ec2.Filter
 	Namespaces map[string]*NamespaceDescription
 	Mutex      sync.RWMutex
+
+	cw *cloudwatch.CloudWatch
+}
+
+func NewRegionDescription(c *Config, r string, metrics map[string][]*MetricDescription) *RegionDescription {
+	session := session.Must(session.NewSession(&aws.Config{Region: &r}))
+	cw := cloudwatch.New(session)
+	rd := RegionDescription{Region: &r}
+	rd.cw = cw
+	rd.Init(session, c.Tags, metrics)
+	return &rd
 }
 
 // NamespaceDescription describes an AWS namespace to be monitored via cloudwatch
@@ -144,11 +155,10 @@ func (rd *RegionDescription) saveAccountID() error {
 
 // Init initializes a region and its nested namspaces in preparation for collection
 // cloudwatchc metrics for that region.
-func (rd *RegionDescription) Init(s *session.Session, td []*TagDescription, r *string) error {
-	log.Infof("Initializing region %s ...", *r)
+func (rd *RegionDescription) Init(s *session.Session, td []*TagDescription, metrics map[string][]*MetricDescription) error {
+	log.Infof("Initializing region %s ...", *rd.Region)
 	rd.Session = s
 	rd.Tags = td
-	rd.Region = r
 
 	err := rd.saveAccountID()
 	h.LogErrorExit(err)
@@ -156,14 +166,14 @@ func (rd *RegionDescription) Init(s *session.Session, td []*TagDescription, r *s
 	err = rd.buildFilters()
 	h.LogErrorExit(err)
 
-	err = rd.CreateNamespaceDescriptions()
+	err = rd.CreateNamespaceDescriptions(metrics)
 	h.LogErrorExit(err)
 
 	return nil
 }
 
 // CreateNamespaceDescriptions populates the list of NamespaceDescriptions for an AWS region
-func (rd *RegionDescription) CreateNamespaceDescriptions() error {
+func (rd *RegionDescription) CreateNamespaceDescriptions(metrics map[string][]*MetricDescription) error {
 	namespaces := GetNamespaces()
 	rd.Namespaces = make(map[string]*NamespaceDescription)
 	for _, namespace := range namespaces {
@@ -171,6 +181,7 @@ func (rd *RegionDescription) CreateNamespaceDescriptions() error {
 			Namespace: aws.String(namespace),
 			Parent:    rd,
 		}
+		nd.Metrics = metrics[namespace]
 		rd.Namespaces[namespace] = &nd
 	}
 
@@ -178,7 +189,7 @@ func (rd *RegionDescription) CreateNamespaceDescriptions() error {
 }
 
 // GatherMetrics queries the Cloudwatch API for metrics related to the resources in this region
-func (rd *RegionDescription) GatherMetrics(cw *cloudwatch.CloudWatch) {
+func (rd *RegionDescription) GatherMetrics() {
 	log.Infof("Gathering metrics for region %s...", *rd.Region)
 
 	ndc := make(chan *NamespaceDescription)
@@ -187,7 +198,7 @@ func (rd *RegionDescription) GatherMetrics(cw *cloudwatch.CloudWatch) {
 		for _, metric := range namespace.Metrics {
 			metric.initializeMetric()
 		}
-		go namespace.GatherMetrics(cw, ndc)
+		go namespace.GatherMetrics(rd.cw, ndc)
 	}
 }
 

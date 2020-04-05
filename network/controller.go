@@ -24,8 +24,7 @@ func CreateResourceDescription(nd *b.NamespaceDescription, ng *ec2.NatGateway) e
 	rd.ID = ng.NatGatewayId
 	rd.Name = ng.NatGatewayId
 	rd.Type = aws.String("nat-gateway")
-	rd.Parent = nd
-	rd.BuildQuery()
+	rd.Region = nd.Parent.Region
 	nd.Resources = append(nd.Resources, &rd)
 
 	return nil
@@ -36,7 +35,6 @@ func CreateResourceList(nd *b.NamespaceDescription, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	log.Debug("Creating NatGateway resource list ...")
 	nd.Resources = []*b.ResourceDescription{}
-	nd.Metrics = GetMetrics()
 	session := ec2.New(nd.Parent.Session)
 	input := ec2.DescribeNatGatewaysInput{
 		Filter: nd.Parent.Filters,

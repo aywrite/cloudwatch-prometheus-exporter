@@ -54,16 +54,17 @@ func LoadConfig(path string) (*Config, error) {
 	return &c, nil
 }
 
-func (c *Config) ConstructMetrics(defaults map[string]map[string]*string) map[string][]*MetricDescription {
+func (c *Config) ConstructMetrics(defaults map[string]map[string]*MetricDescription) map[string][]*MetricDescription {
 	mds := make(map[string][]*MetricDescription)
 	for namespace, metrics := range c.Metrics.Data {
 
 		if len(metrics) <= 0 {
-			if n_defaults, ok := defaults[namespace]; ok == true {
-				for key, help := range n_defaults {
+			if namespaceDefaults, ok := defaults[namespace]; ok == true {
+				for key, defaultMetric := range namespaceDefaults {
 					metrics = append(metrics, &configMetric{
-						AWSMetric: key,
-						Help:      *help,
+						AWSMetric:  key,
+						OutputName: *defaultMetric.OutputName,
+						Help:       *defaultMetric.Help,
 					})
 				}
 			}
@@ -88,7 +89,6 @@ func (c *Config) ConstructMetrics(defaults map[string]map[string]*string) map[st
 				rangeSeconds = int(c.Period) * int(time.Minute)
 			}
 
-			// TODO check this works
 			if metric.Statistics == nil || len(metric.Statistics) < 1 {
 				metric.Statistics = helpers.StringPointers("Average")
 			}

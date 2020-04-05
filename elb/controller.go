@@ -24,8 +24,7 @@ func CreateResourceDescription(nd *b.NamespaceDescription, td *elb.TagDescriptio
 	rd.ID = td.LoadBalancerName
 	rd.Name = td.LoadBalancerName
 	rd.Type = aws.String("lb-classic")
-	rd.Parent = nd
-	rd.BuildQuery()
+	rd.Region = nd.Parent.Region
 	nd.Resources = append(nd.Resources, &rd)
 
 	return nil
@@ -36,7 +35,6 @@ func CreateResourceList(nd *b.NamespaceDescription, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	log.Debug("Creating Classic LB resource list ...")
 	nd.Resources = []*b.ResourceDescription{}
-	nd.Metrics = GetMetrics()
 	session := elb.New(nd.Parent.Session)
 	input := elb.DescribeLoadBalancersInput{}
 	result, err := session.DescribeLoadBalancers(&input)

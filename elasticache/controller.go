@@ -25,8 +25,7 @@ func CreateResourceDescription(nd *b.NamespaceDescription, cc *elasticache.Cache
 	rd.ID = cc.CacheClusterId
 	rd.Name = cc.CacheClusterId
 	rd.Type = aws.String("elasticache")
-	rd.Parent = nd
-	rd.BuildQuery()
+	rd.Region = nd.Parent.Region
 	nd.Mutex.Lock()
 	nd.Resources = append(nd.Resources, &rd)
 	nd.Mutex.Unlock()
@@ -40,7 +39,6 @@ func CreateResourceList(nd *b.NamespaceDescription, wg *sync.WaitGroup) error {
 	log.Debug("Creating Elasticache resource list ...")
 
 	nd.Resources = []*b.ResourceDescription{}
-	nd.Metrics = GetMetrics()
 	session := elasticache.New(nd.Parent.Session)
 	input := elasticache.DescribeCacheClustersInput{}
 	result, err := session.DescribeCacheClusters(&input)

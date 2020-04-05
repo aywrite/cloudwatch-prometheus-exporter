@@ -27,8 +27,7 @@ func CreateResourceDescription(nd *b.NamespaceDescription, bucket *s3.Bucket) er
 	rd.ID = bucket.Name
 	rd.Name = bucket.Name
 	rd.Type = aws.String("s3")
-	rd.Parent = nd
-	rd.BuildQuery()
+	rd.Region = nd.Parent.Region
 	nd.Mutex.Lock()
 	nd.Resources = append(nd.Resources, &rd)
 	nd.Mutex.Unlock()
@@ -44,7 +43,6 @@ func CreateResourceList(nd *b.NamespaceDescription, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	nd.Resources = []*b.ResourceDescription{}
-	nd.Metrics = GetMetrics()
 	session := s3.New(nd.Parent.Session)
 	input := s3.ListBucketsInput{}
 	result, err := session.ListBuckets(&input)

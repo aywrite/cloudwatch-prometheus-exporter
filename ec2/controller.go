@@ -33,8 +33,7 @@ func CreateResourceDescription(nd *b.NamespaceDescription, instance *ec2.Instanc
 		rd.Name = name
 	}
 	rd.Type = aws.String("ec2")
-	rd.Parent = nd
-	rd.BuildQuery()
+	rd.Region = nd.Parent.Region
 	nd.Resources = append(nd.Resources, &rd)
 
 	return nil
@@ -46,7 +45,6 @@ func CreateResourceList(nd *b.NamespaceDescription, wg *sync.WaitGroup) error {
 	log.Debug("Creating EC2 resource list ...")
 
 	nd.Resources = []*b.ResourceDescription{}
-	nd.Metrics = GetMetrics()
 	session := ec2.New(nd.Parent.Session)
 	input := ec2.DescribeInstancesInput{
 		Filters: nd.Parent.Filters,

@@ -35,9 +35,7 @@ func CreateResourceDescription(nd *b.NamespaceDescription, td *elbv2.TagDescript
 	h.LogError(err)
 	rd.ID = td.ResourceArn
 	rd.Name = &lbName
-	rd.Parent = nd
-	rd.BuildQuery()
-	nd.Metrics = GetMetrics(rd.Type)
+	rd.Region = nd.Parent.Region
 	nd.Resources = append(nd.Resources, &rd)
 
 	return nil
