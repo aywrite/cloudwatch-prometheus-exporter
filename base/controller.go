@@ -2,6 +2,7 @@ package base
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -181,7 +182,9 @@ func (rd *RegionDescription) CreateNamespaceDescriptions(metrics map[string][]*M
 			Namespace: aws.String(namespace),
 			Parent:    rd,
 		}
-		nd.Metrics = metrics[namespace]
+		if mds, ok := metrics[namespace]; ok == true {
+			nd.Metrics = mds
+		}
 		rd.Namespaces[namespace] = &nd
 	}
 
@@ -204,13 +207,16 @@ func (rd *RegionDescription) GatherMetrics() {
 
 // GatherMetrics queries the Cloudwatch API for metrics related to this AWS namespace in the parent region
 func (nd *NamespaceDescription) GatherMetrics(cw *cloudwatch.CloudWatch, ndc chan *NamespaceDescription) {
+	log.Debugf("Namespace %s", *nd.Namespace)
 	for _, md := range nd.Metrics {
+		// TODO keep this/rename?
+		met := md
 		go func(md *MetricDescription, ndc chan *NamespaceDescription) {
-			result, err := md.getData(cw, nd.Resources)
+			result, err := met.getData(cw, nd.Resources)
 			h.LogError(err)
-			md.saveData(result)
+			met.saveData(result)
 			ndc <- nd
-		}(md, ndc)
+		}(met, ndc)
 	}
 }
 
@@ -264,8 +270,14 @@ func (rd *ResourceDescription) BuildDimensions(dd []*DimensionDescription) error
 
 func (rd *ResourceDescription) queryID() *string {
 	// Cloudwatch calls need a snake-case-unique-id
+	// TODO this function needs to be more robust
 	id := strings.ToLower(*rd.ID)
-	return aws.String(strings.Replace(id, "-", "_", -1))
+	// TODO handle the error / make this global
+	reg, _ := regexp.Compile("[^a-zA-Z0-9]+")
+	id = reg.ReplaceAllString(id, "_")
+	//id = strings.ReplaceAll(id, "-", "_")
+	//id = strings.ReplaceAll(id, ".", "_")
+	return aws.String(id)
 }
 
 // BuildQuery constructs and saves the cloudwatch query for all the metrics associated with the resource
