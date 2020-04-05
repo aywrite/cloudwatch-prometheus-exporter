@@ -47,13 +47,6 @@ type Config struct {
 	Metrics      metric            `yaml:"metrics"`                 // Map of per metric configuration overrides
 }
 
-// LoadConfig reads the config file located at path and reads it into the Config struct
-func LoadConfig(path string) (*Config, error) {
-	c := Config{}
-	helpers.YAMLDecode(&path, &c)
-	return &c, nil
-}
-
 func (c *Config) ConstructMetrics(defaults map[string]map[string]*MetricDescription) map[string][]*MetricDescription {
 	mds := make(map[string][]*MetricDescription)
 	for namespace, metrics := range c.Metrics.Data {
