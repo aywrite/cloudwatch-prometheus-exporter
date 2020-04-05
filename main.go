@@ -34,9 +34,10 @@ func init() {
 }
 
 func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi *uint8) {
+	delay := 0
 	for {
 		select {
-		case <-time.After(time.Duration(*pi) * time.Minute):
+		case <-time.After(time.Duration(delay) * time.Minute):
 			var wg sync.WaitGroup
 			wg.Add(8)
 			log.Debug("Creating list of resources ...")
@@ -50,6 +51,7 @@ func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd
 			go s3.CreateResourceList(nd["AWS/S3"], &wg)
 			wg.Wait()
 			log.Debug("Gathering metrics ...")
+			delay = int(*pi)
 			go rd.GatherMetrics(cw)
 		}
 	}
