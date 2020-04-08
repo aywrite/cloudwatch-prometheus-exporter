@@ -7,20 +7,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/base"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/ec2"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elasticache"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elb"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/elbv2"
-	h "github.com/CoverGenius/cloudwatch-prometheus-exporter/helpers"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/network"
-	"github.com/CoverGenius/cloudwatch-prometheus-exporter/rds"
 	"github.com/CoverGenius/cloudwatch-prometheus-exporter/s3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/base"
+	h "github.com/CoverGenius/cloudwatch-prometheus-exporter/helpers"
+	"github.com/CoverGenius/cloudwatch-prometheus-exporter/rds"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -33,7 +33,7 @@ func init() {
 	flag.StringVar(&config, "config", "config.yaml", "Path to config file")
 }
 
-func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8) {
+func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8, cfg map[string][]*base.MetricDescription) {
 	var delay uint8 = 0
 	for {
 		select {
@@ -91,20 +91,33 @@ func processConfig(p *string) *base.Config {
 }
 
 func main() {
+	// TODO allow hot reload of config
 	flag.Parse()
 	c := processConfig(&config)
+	defaults := map[string]map[string]*base.MetricDescription{
+		"AWS/RDS":            rds.Metrics,
+		"AWS/ElastiCache":    elasticache.Metrics,
+		"AWS/EC2":            ec2.Metrics,
+		"AWS/NATGateway":     network.Metrics,
+		"AWS/ELB":            elb.Metrics,
+		"AWS/ApplicationELB": elbv2.ALBMetrics,
+		"AWS/NetworkELB":     elbv2.NLBMetrics,
+		"AWS/S3":             s3.Metrics,
+	}
+	mds := c.ConstructMetrics(defaults)
 
-	for _, region := range c.Regions {
-		r := region
+	for _, r := range c.Regions {
 		session := session.Must(session.NewSession(&aws.Config{Region: r}))
 		cw := cloudwatch.New(session)
-		rd := base.RegionDescription{
-			Config: c,
-		}
+		rd := base.RegionDescription{Region: r}
 		rdd = append(rdd, &rd)
-		rd.Init(session, c.Tags, r, &c.Period)
+		rd.Init(session, c.Tags, mds)
 
-		go run(rd.Namespaces, cw, &rd, c.PollInterval)
+		go run(rd.Namespaces, cw, &rd, c.PollInterval, mds)
+		//rd := base.NewRegionDescription(c, *region, mds)
+		//rdd = append(rdd, rd)
+
+		//go run(rd.Namespaces, rd, c.PollInterval, mds)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

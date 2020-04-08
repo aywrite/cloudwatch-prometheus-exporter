@@ -20,6 +20,7 @@ metrics:
        resource_id_dimension: LoadBalancerName
      statistics: [Sum]
 */
+// TODO handle dimensions
 type configMetric struct {
 	AWSMetric     string    `yaml:"metric"`         // The Cloudwatch metric to use
 	Help          string    `yaml:"help"`           // Custom help text for the generated metric
@@ -86,23 +87,29 @@ func (c *Config) ConstructMetrics(defaults map[string]map[string]*MetricDescript
 				metric.Statistics = helpers.StringPointers("Average")
 			}
 
-			for _, stat := range metric.Statistics {
-				// TODO read defaults for namespace (the metrics)
-				// TODO handle dimensions
-				// TODO move metricName function here / apply to output name
-				// TODO create new metric function (which inits metrics?)
-				mds[namespace] = append(mds[namespace], &MetricDescription{
-					Help:          &metric.Help,
-					OutputName:    &name,
-					Dimensions:    []*cloudwatch.Dimension{},
-					PeriodSeconds: period,
-					RangeSeconds:  rangeSeconds,
-					Statistic:     stat,
-
-					namespace: &namespace,
-					awsMetric: &metric.AWSMetric,
-				})
+			help := metric.Help
+			if help == "" {
+				if d, ok := defaults[namespace][metric.AWSMetric]; ok == true {
+					help = *d.Help
+				}
 			}
+
+			// TODO read defaults for namespace (the metrics)
+			// TODO handle dimensions
+			// TODO move metricName function here / apply to output name
+			// TODO create new metric function (which inits metrics?)
+			// TODO one stat per metric
+			mds[namespace] = append(mds[namespace], &MetricDescription{
+				Help:          &help,
+				OutputName:    &name,
+				Dimensions:    []*cloudwatch.Dimension{},
+				PeriodSeconds: period,
+				RangeSeconds:  rangeSeconds,
+				Statistic:     metric.Statistics,
+
+				Namespace: namespace,
+				AWSMetric: metric.AWSMetric,
+			})
 		}
 	}
 	return mds

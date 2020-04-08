@@ -1,5 +1,7 @@
 # cloudwatch-prometheus-exporter
 
+TODO update this
+
 [![Go Report Card](https://goreportcard.com/badge/github.com/CoverGenius/cloudwatch-prometheus-exporter)][goreportcard]
 
 Cloudwatch prometheus exporter with support for multiple regions and counter metrics
