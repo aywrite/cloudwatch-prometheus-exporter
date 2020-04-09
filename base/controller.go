@@ -47,8 +47,8 @@ type MetricDescription struct {
 	Help          *string
 	OutputName    *string
 	Dimensions    []*cloudwatch.Dimension
-	PeriodSeconds int
-	RangeSeconds  int
+	PeriodSeconds int64
+	RangeSeconds  int64
 	Statistic     []*string
 
 	timestamps map[awsLabels]*time.Time
@@ -244,7 +244,7 @@ func (md *MetricDescription) BuildQuery(rds []*ResourceDescription) ([]*cloudwat
 						Dimensions: dimensions,
 					},
 					Stat:   stat,
-					Period: aws.Int64(int64(md.PeriodSeconds) / int64(time.Minute)),
+					Period: aws.Int64(md.PeriodSeconds),
 				},
 				// We hardcode the label so that we can rely on the ordering in
 				// saveData.

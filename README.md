@@ -23,8 +23,9 @@ api_secret: <API_SECRET>
 tags:
   - name: Environment
     value: production
-period: 5
-poll_interval: 5
+period_seconds: 300
+range_seconds: 300
+poll_interval: 300
 log_level: 4
 metrics:
   AWS/S3:

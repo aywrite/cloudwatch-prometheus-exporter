@@ -33,11 +33,11 @@ func init() {
 	flag.StringVar(&config, "config", "config.yaml", "Path to config file")
 }
 
-func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi uint8, cfg map[string][]*base.MetricDescription) {
-	var delay uint8 = 0
+func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd *base.RegionDescription, pi int64, cfg map[string][]*base.MetricDescription) {
+	var delay int64 = 0
 	for {
 		select {
-		case <-time.After(time.Duration(delay) * time.Minute):
+		case <-time.After(time.Duration(delay) * time.Second):
 			var wg sync.WaitGroup
 			wg.Add(8)
 			log.Debug("Creating list of resources ...")
@@ -50,7 +50,6 @@ func run(nd map[string]*base.NamespaceDescription, cw *cloudwatch.CloudWatch, rd
 			go elbv2.CreateResourceList(nd["AWS/NetworkELB"], &wg)
 			go s3.CreateResourceList(nd["AWS/S3"], &wg)
 			wg.Wait()
-			log.Debug("Gathering metrics ...")
 			delay = pi
 			go rd.GatherMetrics(cw)
 		}
@@ -65,8 +64,12 @@ func processConfig(p *string) *base.Config {
 		c.Listen = "127.0.0.1:8080"
 	}
 
-	if c.Period == 0 {
-		c.Period = 5
+	if c.PeriodSeconds == 0 {
+		c.PeriodSeconds = 60
+	}
+
+	if c.RangeSeconds == 0 {
+		c.RangeSeconds = 300
 	}
 
 	if c.APIKey == "" || c.APISecret == "" {
@@ -78,7 +81,7 @@ func processConfig(p *string) *base.Config {
 	}
 
 	if c.PollInterval == 0 {
-		c.PollInterval = 5
+		c.PollInterval = 300
 	}
 
 	log.SetOutput(os.Stdout)
