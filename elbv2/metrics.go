@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
+// ALBMetrics is a map of default MetricDescriptions for this namespace
 var ALBMetrics = map[string]*b.MetricDescription{
 	"ActiveConnectionCount": {
 		Help:          aws.String("The total number of concurrent TCP connections active from clients to the load balancer and from the load balancer to targets"),
@@ -157,6 +158,7 @@ var ALBMetrics = map[string]*b.MetricDescription{
 	},
 }
 
+// NLBMetrics is a map of default MetricDescriptions for this namespace
 var NLBMetrics = map[string]*b.MetricDescription{
 	"ActiveFlowCount": {
 		Help:          aws.String("The total number of concurrent flows (or connections) from clients to targets. This metric includes connections in the SYN_SENT and ESTABLISHED states. TCP connections are not terminated at the load balancer, so a client opening a TCP connection to a target counts as a single flow"),

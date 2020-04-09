@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
+// Metrics is a map of default MetricDescriptions for this namespace
 var Metrics = map[string]*b.MetricDescription{
 	"BackendConnectionErrors": {
 		Help:          aws.String("The number of connections that were not successfully established between the load balancer and the registered instances. Because the load balancer retries the connection when there are errors, this count can exceed the request rate. Note that this count also includes any connection errors related to health checks"),

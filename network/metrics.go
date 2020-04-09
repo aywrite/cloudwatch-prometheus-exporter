@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
+// Metrics is a map of default MetricDescriptions for this namespace
 var Metrics = map[string]*b.MetricDescription{
 	"ActiveConnectionCount": {
 		Help:          aws.String("The total number of concurrent active TCP connections through the NAT gateway"),

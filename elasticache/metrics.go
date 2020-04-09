@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
+// Metrics is a map of default MetricDescriptions for this namespace
 var Metrics = map[string]*b.MetricDescription{
 	"ActiveDefragHits": {
 		Help:          aws.String("The number of value reallocations per minute performed by the active defragmentation process"),

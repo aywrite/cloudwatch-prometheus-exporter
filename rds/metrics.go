@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
+// Metrics is a map of default MetricDescriptions for this namespace
 var Metrics = map[string]*b.MetricDescription{
 	"BinLogDiskUsage": {
 		Help:          aws.String("The amount of disk space occupied by binary logs on the master. Applies to MySQL read replicas"),

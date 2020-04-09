@@ -117,10 +117,6 @@ func main() {
 		rd.Init(session, c.Tags, mds)
 
 		go run(rd.Namespaces, cw, &rd, c.PollInterval, mds)
-		//rd := base.NewRegionDescription(c, *region, mds)
-		//rdd = append(rdd, rd)
-
-		//go run(rd.Namespaces, rd, c.PollInterval, mds)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

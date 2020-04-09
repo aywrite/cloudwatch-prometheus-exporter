@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
+// Metrics is a map of default MetricDescriptions for this namespace
 var Metrics = map[string]*b.MetricDescription{
 	"CPUCreditBalance": {
 		Help:          aws.String("The number of earned CPU credits that an instance has accrued since it was launched or started"),

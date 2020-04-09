@@ -19,7 +19,6 @@ metrics:
        resource_id_dimension: LoadBalancerName
      statistics: [Sum]
 */
-// TODO handle dimensions
 type configMetric struct {
 	AWSMetric     string    `yaml:"metric"`         // The Cloudwatch metric to use
 	Help          string    `yaml:"help"`           // Custom help text for the generated metric
@@ -52,12 +51,13 @@ type Config struct {
 	Metrics metric `yaml:"metrics"` // Map of per metric configuration overrides
 }
 
+// ConstructMetrics generates a map of MetricDescriptions keyed by CloudWatch namespace using the defaults provided in Config.
 func (c *Config) ConstructMetrics(defaults map[string]map[string]*MetricDescription) map[string][]*MetricDescription {
 	mds := make(map[string][]*MetricDescription)
 	for namespace, metrics := range c.Metrics.Data {
 
 		if len(metrics) <= 0 {
-			if namespaceDefaults, ok := defaults[namespace]; ok == true {
+			if namespaceDefaults, ok := defaults[namespace]; ok {
 				for key, defaultMetric := range namespaceDefaults {
 					metrics = append(metrics, &configMetric{
 						AWSMetric:  key,
@@ -70,11 +70,9 @@ func (c *Config) ConstructMetrics(defaults map[string]map[string]*MetricDescript
 
 		mds[namespace] = []*MetricDescription{}
 		for _, metric := range metrics {
-
 			name := metric.OutputName
 			if name == "" {
-				name = helpers.ToSnakeCase(metric.AWSMetric)
-				name = strings.ToLower(strings.TrimPrefix(namespace, "AWS/")) + "_" + name
+				name = helpers.ToPromString(strings.TrimPrefix(namespace, "AWS/") + "_" + metric.AWSMetric)
 			}
 
 			period := metric.PeriodSeconds
@@ -93,15 +91,13 @@ func (c *Config) ConstructMetrics(defaults map[string]map[string]*MetricDescript
 
 			help := metric.Help
 			if help == "" {
-				if d, ok := defaults[namespace][metric.AWSMetric]; ok == true {
+				if d, ok := defaults[namespace][metric.AWSMetric]; ok {
 					help = *d.Help
 				}
 			}
 
-			// TODO read defaults for namespace (the metrics)
 			// TODO handle dimensions
 			// TODO move metricName function here / apply to output name
-			// TODO create new metric function (which inits metrics?)
 			// TODO one stat per metric
 			mds[namespace] = append(mds[namespace], &MetricDescription{
 				Help:          &help,

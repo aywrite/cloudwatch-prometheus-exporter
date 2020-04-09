@@ -173,7 +173,7 @@ func (rd *RegionDescription) CreateNamespaceDescriptions(metrics map[string][]*M
 			Namespace: aws.String(namespace),
 			Parent:    rd,
 		}
-		if mds, ok := metrics[namespace]; ok == true {
+		if mds, ok := metrics[namespace]; ok {
 			nd.Metrics = mds
 		}
 		rd.Namespaces[namespace] = &nd
@@ -272,7 +272,7 @@ func (l *awsLabels) String() string {
 func awsLabelsFromString(s string) (*awsLabels, error) {
 	stringLabels := strings.Split(s, " ")
 	if len(stringLabels) < 5 {
-		return nil, fmt.Errorf("Expected at least five labels, got %s", s)
+		return nil, fmt.Errorf("expected at least five labels, got %s", s)
 	}
 	labels := awsLabels{
 		statistic: stringLabels[len(stringLabels)-5],
@@ -319,7 +319,7 @@ func (md *MetricDescription) saveData(c *cloudwatch.GetMetricDataOutput, region 
 		case "SampleCount":
 			value, err = h.Sum(values)
 		default:
-			err = fmt.Errorf("Unknown Statistic type: %s", labels.statistic)
+			err = fmt.Errorf("unknown statistic type: %s", labels.statistic)
 		}
 		if err != nil {
 			h.LogError(err)
@@ -337,7 +337,7 @@ func (md *MetricDescription) saveData(c *cloudwatch.GetMetricDataOutput, region 
 		labels := []string{"name", "id", "type", "region"}
 
 		exporter.mutex.Lock()
-		if _, ok := exporter.data[name+region]; ok == false {
+		if _, ok := exporter.data[name+region]; !ok {
 			if stat == "Sum" {
 				exporter.data[name+region] = NewBatchCounterVec(opts, labels)
 			} else {
@@ -363,7 +363,7 @@ func (md *MetricDescription) filterValues(data *cloudwatch.MetricDataResult, lab
 		if md.timestamps == nil {
 			md.timestamps = make(map[awsLabels]*time.Time)
 		}
-		if lastTimestamp, ok := md.timestamps[*labels]; ok == true {
+		if lastTimestamp, ok := md.timestamps[*labels]; ok {
 			values = h.NewValues(data.Values, data.Timestamps, *lastTimestamp)
 		}
 		if len(values) > 0 {
